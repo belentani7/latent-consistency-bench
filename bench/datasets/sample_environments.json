@@ -1,0 +1,50 @@
+[
+  {
+    "subject": "modern open-plan office",
+    "lighting": ["natural daylight", "fluorescent", "warm ambient"],
+    "weather": ["clear", "overcast", "rainy"],
+    "description": "Contemporary office space with glass partitions and ergonomic furniture"
+  },
+  {
+    "subject": "tropical beach at sunset",
+    "lighting": ["golden hour", "sunset", "twilight"],
+    "weather": ["clear", "partly cloudy", "foggy"],
+    "description": "White sand beach with palm trees and turquoise water"
+  },
+  {
+    "subject": "underwater coral reef",
+    "lighting": ["sunlight filtering", "bioluminescent", "dark ambient"],
+    "weather": ["clear", "murky", "sandy"],
+    "description": "Vibrant coral reef with tropical fish and sea plants"
+  },
+  {
+    "subject": "urban rooftop garden",
+    "lighting": ["morning light", "midday", "evening golden"],
+    "weather": ["clear", "overcast", "rainy"],
+    "description": "City rooftop with raised beds, herbs, and string lights"
+  },
+  {
+    "subject": "snowy mountain cabin",
+    "lighting": ["blue hour", "firelight glow", "morning light"],
+    "weather": ["snowy", "clear", "foggy"],
+    "description": "Rustic log cabin in mountain setting with snow-covered pines"
+  },
+  {
+    "subject": "cyberpunk city street",
+    "lighting": ["neon signs", "streetlights", "rain reflections"],
+    "weather": ["rainy", "foggy", "clear night"],
+    "description": "Futuristic urban alley with holographic advertisements"
+  },
+  {
+    "subject": "ancient library interior",
+    "lighting": ["candlelight", "stained glass", "dim ambient"],
+    "weather": ["interior", "stormy outside", "sunny"],
+    "description": "Grand Gothic library with towering bookshelves"
+  },
+  {
+    "subject": "volcanic landscape",
+    "lighting": ["magma glow", "ash haze", "sunset through smoke"],
+    "weather": ["ashfall", "clear", "stormy"],
+    "description": "Active volcanic terrain with lava flows and smoke"
+  }
+]

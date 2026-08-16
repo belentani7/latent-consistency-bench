@@ -1,0 +1,50 @@
+[
+  {
+    "subject": "portrait of a young woman with red hair",
+    "poses": ["front facing", "three-quarter view", "looking up"],
+    "styles": ["photorealistic", "oil painting", "anime"],
+    "description": "Young woman, approximately 25 years old, with shoulder-length red hair and green eyes"
+  },
+  {
+    "subject": "elderly craftsman in workshop",
+    "poses": ["hands on hips", "reaching forward", "sitting"],
+    "styles": ["photorealistic", "pencil sketch", "watercolor"],
+    "description": "Elderly man in his 70s, silver beard, wearing leather apron"
+  },
+  {
+    "subject": "fantasy elf warrior",
+    "poses": ["front facing", "arms crossed", "running"],
+    "styles": ["photorealistic", "anime", "oil painting"],
+    "description": "Tall elf with pointed ears, silver armor, and longbow"
+  },
+  {
+    "subject": "astronaut in space suit",
+    "poses": ["front facing", "profile left", "looking down"],
+    "styles": ["photorealistic", "3D render"],
+    "description": "Modern EVA suit with helmet visor reflecting Earth"
+  },
+  {
+    "subject": "cat with tabby pattern",
+    "poses": ["sitting", "walking", "looking up"],
+    "styles": ["photorealistic", "watercolor", "pixel art"],
+    "description": "Domestic shorthair tabby cat, orange and white"
+  },
+  {
+    "subject": "robot with humanoid features",
+    "poses": ["front facing", "arms crossed", "reaching forward"],
+    "styles": ["photorealistic", "3D render", "anime"],
+    "description": "Sleek humanoid robot with blue LED accents"
+  },
+  {
+    "subject": "child with curly hair",
+    "poses": ["front facing", "looking up", "jumping"],
+    "styles": ["photorealistic", "oil painting"],
+    "description": "7-year-old child with brown curly hair and freckles"
+  },
+  {
+    "subject": "medieval knight in full armor",
+    "poses": ["front facing", "three-quarter view", "arms crossed"],
+    "styles": ["photorealistic", "oil painting", "pencil sketch"],
+    "description": "Full plate armor, sword and shield, heraldic crest"
+  }
+]
