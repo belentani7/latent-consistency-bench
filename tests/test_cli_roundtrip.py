@@ -25,14 +25,14 @@ def test_can_read_legacy_single_result(tmp_path):
 def test_run_produces_reproducible_composite_json_and_png(tmp_path):
     a = tmp_path / "one.json"
     b = tmp_path / "two.json"
-    cmd_run(Namespace(characters=1, environments=1, output=str(a), seed=42))
-    cmd_run(Namespace(characters=1, environments=1, output=str(b), seed=42))
+    cmd_run(Namespace(characters=1, environments=1, materials=1, output=str(a), seed=42))
+    cmd_run(Namespace(characters=1, environments=1, materials=1, output=str(b), seed=42))
     assert json.loads(a.read_text()) == json.loads(b.read_text())
     assert a.with_suffix(".png").stat().st_size > 100
     assert b.with_suffix(".png").stat().st_size > 100
     raw = json.loads(a.read_text())
     assert raw["simulation"] is True
-    assert list(load_results(a)) == ["character", "temporal"]
+    assert list(load_results(a)) == ["character", "temporal", "pbr"]
 
 
 @pytest.mark.parametrize("fmt,suffix", [("csv", ".csv"), ("html", ".html"), ("md", ".md")])
@@ -41,13 +41,15 @@ def test_reports_include_both_sections(tmp_path, fmt, suffix):
     file.write_text(json.dumps({
         "format_version": 1, "simulation": True,
         "character": {"name": "character", "scores": {"identity": .8}, "num_samples": 3},
-        "temporal": {"name": "temporal", "scores": {"temporal": .7}, "num_samples": 2}
+        "temporal": {"name": "temporal", "scores": {"temporal": .7}, "num_samples": 2},
+        "pbr": {"name": "pbr", "scores": {"pbr": .6}, "num_samples": 2}
     }))
     cmd_report(Namespace(results=str(file), format=fmt))
     out = file.with_suffix(suffix)
     content = out.read_text(encoding="utf-8")
     assert "character" in content.lower()
     assert "temporal" in content.lower()
+    assert "pbr" in content.lower()
     assert out.stat().st_size > 50
 
 
@@ -57,6 +59,7 @@ def test_compare_accepts_native_suite_files(tmp_path, capsys):
     payload = {
         "character": {"name": "char", "scores": {"identity": .8}, "num_samples": 1},
         "temporal": {"name": "temp", "scores": {"temporal": .6}, "num_samples": 1},
+        "pbr": {"name": "pbr", "scores": {"pbr": .6}, "num_samples": 1},
     }
     first.write_text(json.dumps(payload))
     payload["character"]["scores"]["identity"] = .9
@@ -65,6 +68,7 @@ def test_compare_accepts_native_suite_files(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert "Section: character" in printed
     assert "Section: temporal" in printed
+    assert "Section: pbr" in printed
     assert "+0.1000" in printed
 
 
