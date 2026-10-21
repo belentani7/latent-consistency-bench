@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from html import escape
+import math
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -53,9 +55,10 @@ class BenchmarkResult:
     def to_html(self) -> str:
         rows = ""
         for dim, score in sorted(self.scores.items()):
-            bar_width = int(score * 100)
+            safe_score = float(score) if isinstance(score, (int, float)) and math.isfinite(score) else 0.0
+            bar_width = max(0, min(100, int(safe_score * 100)))
             rows += (
-                f'<tr><td>{dim}</td>'
+                f'<tr><td>{escape(str(dim))}</td>'
                 f'<td>{score:.4f}</td>'
                 f'<td><div class="bar" style="width:{bar_width}%"></div></td></tr>\n'
             )
@@ -63,7 +66,7 @@ class BenchmarkResult:
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Benchmark: {self.name}</title>
+<title>Benchmark: {escape(self.name)}</title>
 <style>
 body {{ font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
 table {{ border-collapse: collapse; width: 100%; }}
@@ -74,7 +77,7 @@ h1 {{ color: #1a1a2e; }}
 </style>
 </head>
 <body>
-<h1>Benchmark Result: {self.name}</h1>
+<h1>Benchmark Result: {escape(self.name)}</h1>
 <p class="overall">Overall: {self.overall:.4f} ({self.num_samples} samples)</p>
 <table>
 <tr><th>Dimension</th><th>Score</th><th>Visual</th></tr>
@@ -140,12 +143,12 @@ class ComparisonReport:
             d = self.deltas[dim]
             cls = "pos" if d > 0 else ("neg" if d < 0 else "")
             sign = "+" if d > 0 else ""
-            rows += f'<tr><td>{dim}</td><td>{a:.4f}</td><td>{b:.4f}</td><td class="{cls}">{sign}{d:.4f}</td></tr>\n'
+            rows += f'<tr><td>{escape(str(dim))}</td><td>{a:.4f}</td><td>{b:.4f}</td><td class="{cls}">{sign}{d:.4f}</td></tr>\n'
         return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Comparison: {self.result_a.name} vs {self.result_b.name}</title>
+<title>Comparison: {escape(self.result_a.name)} vs {escape(self.result_b.name)}</title>
 <style>
 body {{ font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
 table {{ border-collapse: collapse; width: 100%; }}
@@ -156,10 +159,10 @@ th, td {{ text-align: left; padding: 0.5rem; border-bottom: 1px solid #ddd; }}
 </style>
 </head>
 <body>
-<h1>Comparison: {self.result_a.name} vs {self.result_b.name}</h1>
-<p class="winner">Winner: {self.winner}</p>
+<h1>Comparison: {escape(self.result_a.name)} vs {escape(self.result_b.name)}</h1>
+<p class="winner">Winner: {escape(self.winner)}</p>
 <table>
-<tr><th>Dimension</th><th>{self.result_a.name}</th><th>{self.result_b.name}</th><th>Delta</th></tr>
+<tr><th>Dimension</th><th>{escape(self.result_a.name)}</th><th>{escape(self.result_b.name)}</th><th>Delta</th></tr>
 {rows}
 </table>
 </body>
