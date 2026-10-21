@@ -15,7 +15,7 @@ from pathlib import Path
 from bench.compare import compare_results, export_csv, generate_chart
 from bench.report import BenchmarkResult
 
-SECTIONS = ("character", "temporal")
+SECTIONS = ("character", "temporal", "pbr")
 
 
 def _parse_result(raw: object, *, name: str) -> BenchmarkResult:
@@ -63,8 +63,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     import numpy as np
     from bench.benchmark import ConsistencyBenchmark
 
-    if args.characters < 1 or args.environments < 1:
-        raise ValueError("--characters and --environments must be >= 1")
+    if args.characters < 1 or args.environments < 1 or args.materials < 1:
+        raise ValueError("--characters, --environments and --materials must be >= 1")
 
     def sample_image(prompt: str, variant: int):
         payload = f"{args.seed}:{variant}:{prompt}".encode("utf-8")
@@ -81,6 +81,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"Character samples: {args.characters}; temporal sequences: {args.environments}")
     char_result = bench.run_character_consistency(n=args.characters)
     temp_result = bench.run_temporal_consistency(n=args.environments)
+    pbr_result = bench.run_pbr_validity(n=args.materials)
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -90,11 +91,12 @@ def cmd_run(args: argparse.Namespace) -> None:
         "seed": args.seed,
         "character": char_result.to_dict(),
         "temporal": temp_result.to_dict(),
+        "pbr": pbr_result.to_dict(),
     }
     output.write_text(json.dumps(combined, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"JSON report: {output}")
 
-    fig = generate_chart([char_result, temp_result], title="LCB · Synthetic Demonstration")
+    fig = generate_chart([char_result, temp_result, pbr_result], title="LCB · Synthetic Demonstration")
     chart_path = output.with_suffix(".png")
     try:
         fig.savefig(chart_path, dpi=150)
@@ -173,6 +175,7 @@ def main(argv: list[str] | None = None) -> None:
     run_parser = subparsers.add_parser("run", help="Run reproducible synthetic example")
     run_parser.add_argument("--characters", type=int, default=20)
     run_parser.add_argument("--environments", type=int, default=10)
+    run_parser.add_argument("--materials", type=int, default=10)
     run_parser.add_argument("--seed", type=int, default=42)
     run_parser.add_argument("--output", default="results.json")
 
