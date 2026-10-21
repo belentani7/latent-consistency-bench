@@ -134,3 +134,19 @@ def real_embedding(image: Image.Image) -> np.ndarray:
 ## License
 
 Apache 2.0 - see [LICENSE](LICENSE) for details.
+
+
+## Integridad y reproducibilidad de los resultados
+
+`lcb run` usa **imágenes sintéticas deterministas**, generadas desde SHA-256 de cada prompt. Su salida incluye `"kind": "synthetic-demo"`: **no representa una prueba empírica de QBP frente a otro modelo**, ni debe utilizarse como una comparación de calidad de modelos reales. Para resultados reales, integra generadores reales en la API de Python e identifica el modelo, parámetros, semillas y datos de prueba.
+
+El comando `run` produce `results.json` con secciones `character` y `temporal`. Para generar informes o comparar dichas secciones es obligatorio indicarlo explícitamente:
+
+```sh
+lcb run --characters 5 --environments 3 --output results.json
+lcb report results.json --section character --format html
+lcb report results.json --section temporal --format md
+lcb compare baseline.json qbp.json --section character
+```
+
+Los informes escapan los títulos y nombres de dimensiones al exportar HTML. La construcción del benchmark no modifica el generador aleatorio global de Python ni NumPy. Los resultados `synthetic-demo` deben mostrarse siempre como material de prueba, nunca como métricas verificadas de producción.
