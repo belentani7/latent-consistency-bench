@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from typing import Any, Callable, Protocol
 
 import numpy as np
@@ -57,8 +56,8 @@ class ConsistencyBenchmark:
         self.baseline_fn = baseline_fn
         self.qbp_fn = qbp_fn
         self.seed = seed
-        random.seed(seed)
-        np.random.seed(seed)
+        # Do not alter process-wide RNG states: callers own their generators.
+        # Mock feature extraction uses local RandomState instances.
 
     def run(
         self,
