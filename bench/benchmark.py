@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from typing import Any, Callable, Protocol
 
 import numpy as np
@@ -57,8 +56,8 @@ class ConsistencyBenchmark:
         self.baseline_fn = baseline_fn
         self.qbp_fn = qbp_fn
         self.seed = seed
-        random.seed(seed)
-        np.random.seed(seed)
+        # Do not reset the application's random generators: each caller owns its RNG.
+        # Local mock feature extractors use deterministic RandomState instances.
 
     def run(
         self,
@@ -254,7 +253,7 @@ class ConsistencyBenchmark:
         albedo = Image.fromarray(arr)
         h, w = arr.shape[:2]
         roughness_arr = np.full((h, w), 128, dtype=np.uint8)
-        roughness = Image.fromarray(roughness_arr, mode="L")
+        roughness = Image.fromarray(roughness_arr)
         normal_arr = np.zeros((h, w, 3), dtype=np.uint8)
         normal_arr[:, :, 2] = 255
         normal = Image.fromarray(normal_arr)
