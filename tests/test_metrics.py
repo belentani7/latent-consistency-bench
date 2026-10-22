@@ -83,8 +83,8 @@ class TestGeometricConsistency:
 
     def test_pil_images(self):
         rng = np.random.RandomState(42)
-        a = Image.fromarray((rng.rand(32, 32) * 255).astype(np.uint8), mode="L")
-        b = Image.fromarray((rng.rand(32, 32) * 255).astype(np.uint8), mode="L")
+        a = Image.fromarray((rng.rand(32, 32) * 255).astype(np.uint8))
+        b = Image.fromarray((rng.rand(32, 32) * 255).astype(np.uint8))
         score = geometric_consistency(a, b)
         assert 0.0 <= score <= 1.0
 
@@ -107,7 +107,7 @@ class TestAestheticScore:
 
     def test_grayscale(self):
         arr = np.full((32, 32), 128, dtype=np.uint8)
-        img = Image.fromarray(arr, mode="L")
+        img = Image.fromarray(arr)
         score = aesthetic_score(img)
         assert 0.0 <= score <= 1.0
 
