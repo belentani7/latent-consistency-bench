@@ -24,8 +24,12 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
+> **Note:** `bench/` has no `__init__.py`, so the package-level import
+> `from bench import ConsistencyBenchmark` fails. Import from the module
+> directly (as below) or add a `bench/__init__.py` re-exporting the API.
+
 ```python
-from bench import ConsistencyBenchmark
+from bench.benchmark import ConsistencyBenchmark
 
 # Define your generation functions
 def baseline_generate(prompt: str) -> Image.Image:
@@ -98,7 +102,6 @@ All metrics return values in [0, 1] where 1 is optimal. The overall score uses w
 ```
 latent-consistency-bench/
 ├── bench/
-│   ├── __init__.py          # Package exports
 │   ├── benchmark.py         # Main ConsistencyBenchmark runner
 │   ├── metrics.py           # Individual metric implementations
 │   ├── test_cases.py        # Standardized test case definitions
@@ -108,6 +111,7 @@ latent-consistency-bench/
 │   └── datasets/            # Sample test data
 │       ├── sample_characters.json
 │       └── sample_environments.json
+├── docs/                    # Generated documentation site (HTML)
 ├── tests/
 │   ├── conftest.py          # Shared pytest fixtures
 │   ├── test_benchmark.py    # Benchmark runner tests
@@ -116,6 +120,8 @@ latent-consistency-bench/
 ├── LICENSE                  # Apache 2.0
 └── README.md
 ```
+
+(no `bench/__init__.py` exists yet — see the Quick Start note.)
 
 ## Mock Implementations
 
