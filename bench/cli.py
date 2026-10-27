@@ -57,6 +57,18 @@ def load_results(path: str | Path) -> dict[str, BenchmarkResult]:
     return {"result": _parse_result(data, name="result")}
 
 
+def _load_result(path: str | Path, section: str | None = None) -> BenchmarkResult:
+    """Backward-compatible single-result loader with explicit suite selection."""
+    results = load_results(path)
+    if section is not None:
+        if section not in results:
+            raise ValueError(f"Section {section!r} is not present in {path}")
+        return results[section]
+    if len(results) != 1:
+        raise ValueError("Combined results require --section to select one result")
+    return next(iter(results.values()))
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     """Execute a deterministic offline simulation; never present as a real model test."""
     from PIL import Image
@@ -110,7 +122,13 @@ def cmd_compare(args: argparse.Namespace) -> None:
     """Compare either two single results or two matching suite sections."""
     baseline = load_results(args.baseline)
     enhanced = load_results(args.qbp)
-    common = sorted(set(baseline) & set(enhanced))
+    selected = getattr(args, "section", None)
+    if selected is not None:
+        if selected not in baseline or selected not in enhanced:
+            raise ValueError(f"Section {selected!r} is not present in both results")
+        common = [selected]
+    else:
+        common = sorted(set(baseline) & set(enhanced))
     if not common:
         raise ValueError("No matching result types in the two JSON files")
     for key in common:
@@ -145,8 +163,14 @@ def _suite_html(results: dict[str, BenchmarkResult]) -> str:
 def cmd_report(args: argparse.Namespace) -> None:
     """Export *all* sections of the JSON produced by 'run'."""
     results = load_results(args.results)
+    selected = getattr(args, "section", None)
+    if selected is not None:
+        if selected not in results:
+            raise ValueError(f"Section {selected!r} is not present in results")
+        results = {selected: results[selected]}
     fmt = args.format
-    base = Path(args.results)
+    source = Path(args.results)
+    base = source.with_name(source.stem + (f"-{selected}" if selected else ""))
     if fmt == "csv":
         csv_path = base.with_suffix(".csv")
         export_csv(list(results.values()), csv_path)
@@ -182,9 +206,11 @@ def main(argv: list[str] | None = None) -> None:
     compare_parser = subparsers.add_parser("compare", help="Compare JSON exports")
     compare_parser.add_argument("baseline")
     compare_parser.add_argument("qbp")
+    compare_parser.add_argument("--section", choices=SECTIONS, help="Compare one suite section")
 
     report_parser = subparsers.add_parser("report", help="Export entire result file")
     report_parser.add_argument("results")
+    report_parser.add_argument("--section", choices=SECTIONS, help="Export one suite section")
     report_parser.add_argument("--format", choices=["html", "csv", "md"], default="html")
 
     args = parser.parse_args(argv)

@@ -33,7 +33,7 @@ Output:
 Instead of the included synthetic generators, provide the generation callables yourself:
 
 ```python
-from bench import ConsistencyBenchmark
+from bench.benchmark import ConsistencyBenchmark
 
 def baseline_generate(prompt: str):
     # Return a real PIL.Image.Image for this prompt.

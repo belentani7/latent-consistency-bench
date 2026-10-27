@@ -91,3 +91,33 @@ def test_invalid_sample_count_fails_closed(tmp_path):
     file.write_text(json.dumps({"name": "bad", "scores": {"identity": .4}, "num_samples": -1}))
     with pytest.raises(ValueError, match="sample count"):
         load_results(file)
+
+
+def test_existing_main_explicit_section_contract(tmp_path):
+    from bench.cli import _load_result
+    path = tmp_path / "combined.json"
+    path.write_text(json.dumps({
+        "kind": "synthetic-demo",
+        "character": {"name": "character", "scores": {"identity": .7}, "num_samples": 2},
+        "temporal": {"name": "temporal", "scores": {"temporal": .8}, "num_samples": 1},
+    }))
+    with pytest.raises(ValueError, match="--section"):
+        _load_result(path)
+    assert _load_result(path, "character").num_samples == 2
+    cmd_report(Namespace(results=str(path), section="character", format="md"))
+    assert (tmp_path / "combined-character.md").exists()
+    assert not (tmp_path / "combined.md").exists()
+
+
+def test_optional_section_comparison_preserves_full_suite_default(tmp_path, capsys):
+    payload = {
+        "character": {"name": "character", "scores": {"identity": .7}, "num_samples": 1},
+        "temporal": {"name": "temporal", "scores": {"temporal": .8}, "num_samples": 1},
+    }
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    a.write_text(json.dumps(payload))
+    b.write_text(json.dumps(payload))
+    cmd_compare(Namespace(baseline=str(a), qbp=str(b), section="character"))
+    output = capsys.readouterr().out
+    assert "Section: character" in output
+    assert "Section: temporal" not in output
