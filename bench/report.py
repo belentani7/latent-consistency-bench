@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from html import escape
-import math
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -55,10 +54,9 @@ class BenchmarkResult:
     def to_html(self) -> str:
         rows = ""
         for dim, score in sorted(self.scores.items()):
-            safe_score = float(score) if isinstance(score, (int, float)) and math.isfinite(score) else 0.0
-            bar_width = max(0, min(100, int(safe_score * 100)))
+            bar_width = max(0, min(100, int(score * 100)))
             rows += (
-                f'<tr><td>{escape(str(dim))}</td>'
+                f'<tr><td>{escape(dim)}</td>'
                 f'<td>{score:.4f}</td>'
                 f'<td><div class="bar" style="width:{bar_width}%"></div></td></tr>\n'
             )
@@ -143,7 +141,7 @@ class ComparisonReport:
             d = self.deltas[dim]
             cls = "pos" if d > 0 else ("neg" if d < 0 else "")
             sign = "+" if d > 0 else ""
-            rows += f'<tr><td>{escape(str(dim))}</td><td>{a:.4f}</td><td>{b:.4f}</td><td class="{cls}">{sign}{d:.4f}</td></tr>\n'
+            rows += f'<tr><td>{escape(dim)}</td><td>{a:.4f}</td><td>{b:.4f}</td><td class="{cls}">{sign}{d:.4f}</td></tr>\n'
         return f"""<!DOCTYPE html>
 <html lang="en">
 <head>

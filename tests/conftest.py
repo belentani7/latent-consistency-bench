@@ -44,7 +44,7 @@ def sample_texture_set() -> dict[str, Image.Image]:
     """A mock PBR texture set with albedo, roughness, and normal."""
     rng = np.random.RandomState(42)
     albedo = Image.fromarray(rng.randint(0, 256, (64, 64, 3), dtype=np.uint8))
-    roughness = Image.fromarray(np.full((64, 64), 128, dtype=np.uint8), mode="L")
+    roughness = Image.fromarray(np.full((64, 64), 128, dtype=np.uint8))
     normal_arr = np.zeros((64, 64, 3), dtype=np.uint8)
     normal_arr[:, :, 2] = 255
     normal = Image.fromarray(normal_arr)

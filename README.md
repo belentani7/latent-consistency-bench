@@ -1,158 +1,83 @@
-# Latent Consistency Bench
+# LATENT CONSISTENCY BENCH
+**Visual quality is measurable only when the measurement is honest.**
 
-Benchmarking visual consistency in AI-generated content.
+Latent Consistency Bench (LCB) is a Python toolkit for **consistency analysis of generated images**: character identity, sequential frame stability, geometric coherence, appearance heuristics and PBR texture validity. It includes benchmark interfaces, result models, comparisons, charts and reporting.
 
-## Overview
+> **Truth in measurements:** the built-in `lcb run` command generates deterministic **synthetic noise**, not images from a real generative model. It exists to exercise the end-to-end pipeline and reporting contract. Identity embeddings, depth proxies and PBR materials are mock implementations. **Its numbers cannot be used to claim real model quality, superiority or scientific validity.** Connect genuine generation and evaluation functions before performing real evaluations.
 
-Latent Consistency Bench (LCB) provides standardized benchmarks comparing baseline generation against QBP-enhanced generation across multiple consistency dimensions:
+## Quick start — reproducible offline simulation
 
-- **Identity Consistency** - Character appearance stability across prompts
-- **Temporal Consistency** - Frame-to-frame stability in sequential generation
-- **Geometric Consistency** - Depth map alignment and spatial coherence
-- **Aesthetic Quality** - Visual appeal and composition scoring
-- **PBR Compliance** - Physically-based rendering material validity
-
-## Installation
+Requires Python 3.10+.
 
 ```bash
-pip install -e .
-# With ML dependencies:
-pip install -e ".[ml]"
-# With dev dependencies:
-pip install -e ".[dev]"
+git clone https://github.com/belentani7/latent-consistency-bench.git
+cd latent-consistency-bench
+python -m pip install -e ".[dev]"
+lcb run --characters 3 --environments 2 --materials 3 --seed 42 --output artifacts/demo.json
+lcb report artifacts/demo.json --format html
+lcb report artifacts/demo.json --format md
+lcb report artifacts/demo.json --format csv
+lcb compare artifacts/demo.json artifacts/demo.json
 ```
 
-## Quick Start
+Output:
+- `artifacts/demo.json`: native, versioned suite with `character`, `temporal` and `pbr` sections, each with scores, metadata and sample count; `simulation: true` marks the origin.
+- `artifacts/demo.png`: bar chart of those three synthetic suites.
+- `artifacts/demo.{html,md,csv}`: reports that now consume the **same JSON schema emitted by `run`**.
+- `lcb compare A.json B.json`: compares each common section, preserving earlier single-result JSON support. Unmatched sections are identified, never silently interpreted as zeros.
 
-> **Note:** `bench/` has no `__init__.py`, so the package-level import
-> `from bench import ConsistencyBenchmark` fails. Import from the module
-> directly (as below) or add a `bench/__init__.py` re-exporting the API.
+`--seed` uses SHA-256-derived deterministic image seeds, independent of Python's randomized `hash()` salts. Running twice with identical inputs produces the same JSON scores on the same compatible stack.
+
+## Evaluating real generators
+
+Instead of the included synthetic generators, provide the generation callables yourself:
 
 ```python
 from bench.benchmark import ConsistencyBenchmark
 
-# Define your generation functions
-def baseline_generate(prompt: str) -> Image.Image:
-    # Your baseline model
-    ...
+def baseline_generate(prompt: str):
+    # Return a real PIL.Image.Image for this prompt.
+    raise NotImplementedError("Connect a real provider")
 
-def qbp_generate(prompt: str) -> Image.Image:
-    # Your QBP-enhanced model
-    ...
+def candidate_generate(prompt: str):
+    raise NotImplementedError("Connect a second generator")
 
-# Run benchmarks
-bench = ConsistencyBenchmark(baseline_generate, qbp_generate)
-
-char_result = bench.run_character_consistency(n=20)
-temp_result = bench.run_temporal_consistency(n=10)
-pbr_result = bench.run_pbr_validity(n=50)
-
-# Compare results
-from bench.compare import compare_results
-report = compare_results(char_result, temp_result)
-print(report.to_markdown())
+benchmark = ConsistencyBenchmark(baseline_generate, candidate_generate, seed=42)
+result = benchmark.run_character_consistency(n=20)
+print(result.to_markdown())
 ```
 
-## CLI Usage
+**The default feature extractors are still proxies**, so this alone does not turn the toolkit into a validated scientific benchmark. Replace the embedding, depth and material heuristics with suitable real evaluators, maintain comparable prompts, seeding, model settings, and report confidence intervals and experimental limits.
+
+## Dimensions
+
+| Dimension | Meaning | Limit of current implementation |
+|---|---|---|
+| Identity | Cosine similarity of extracted embeddings | Synthetic feature extractor, not a trained identity model |
+| Temporal | Frame-to-frame pixel difference | Sensitive to legitimate scene and camera motion |
+| Geometric | Depth-map structural comparison | Luminance-based depth proxy |
+| Aesthetic | Exposure/contrast/color heuristic | Not a human preference or trained aesthetic model |
+| PBR | Texture map distribution and normals | Synthetic maps, not physical proof |
+
+Weights used by `overall_consistency` are identity 30%, temporal 25%, geometric 20%, aesthetic 15%, PBR 10%. `BenchmarkResult.overall` is an **unweighted arithmetic mean of present dimensions**, and should not be conflated with the weighted formula.
+
+## Commands
+
+```text
+lcb run --characters N --environments N --materials N --seed N --output file.json
+lcb compare baseline.json candidate.json
+lcb report results.json --format html|csv|md
+```
+
+## Development and quality gates
 
 ```bash
-# Run full benchmark suite
-lcb run --characters 20 --environments 10 --output results.json
-
-# Compare two result files
-lcb compare baseline.json qbp.json
-
-# Generate report in different formats
-lcb report results.json --format html
-lcb report results.json --format csv
-lcb report results.json --format md
+MPLBACKEND=Agg python -m pytest -q
+python -m compileall -q bench tests
 ```
 
-## Benchmark Methodology
+The suite covers consistency dimensions, metric bounds, reproducible simulation, report JSON round-trip, native comparison, HTML/Markdown/CSV export and escaping of result names. The GitHub CI must actually execute successfully before a release is promoted.
 
-### Character Consistency
-Tests identity preservation across N subjects with varying poses and styles. Each subject generates prompts combining style and pose variations, then measures:
-- Identity embedding cosine similarity between baseline and QBP outputs
-- Aesthetic quality of both outputs
-- Geometric consistency of generated depth maps
+## Design and licensing
 
-### Temporal Consistency
-Tests animation stability by generating sequential frames (5 frames per sequence) for N motion subjects. Measures frame-to-frame pixel stability using normalized mean absolute difference.
-
-### PBR Validity
-Tests physically-based rendering compliance across N material samples. Validates texture sets (albedo, roughness, normal maps) for:
-- Roughness values in valid range
-- Normal map unit-length vectors
-- Albedo luminance distribution
-
-### Scoring
-
-All metrics return values in [0, 1] where 1 is optimal. The overall score uses weighted averaging:
-
-| Dimension | Weight |
-|-----------|--------|
-| Identity | 0.30 |
-| Temporal | 0.25 |
-| Geometric | 0.20 |
-| Aesthetic | 0.15 |
-| PBR | 0.10 |
-
-## Project Structure
-
-```
-latent-consistency-bench/
-├── bench/
-│   ├── benchmark.py         # Main ConsistencyBenchmark runner
-│   ├── metrics.py           # Individual metric implementations
-│   ├── test_cases.py        # Standardized test case definitions
-│   ├── compare.py           # Comparison and visualization tools
-│   ├── report.py            # Result dataclasses and formatting
-│   ├── cli.py               # Command-line interface
-│   └── datasets/            # Sample test data
-│       ├── sample_characters.json
-│       └── sample_environments.json
-├── docs/                    # Generated documentation site (HTML)
-├── tests/
-│   ├── conftest.py          # Shared pytest fixtures
-│   ├── test_benchmark.py    # Benchmark runner tests
-│   └── test_metrics.py      # Metric function tests
-├── pyproject.toml
-├── LICENSE                  # Apache 2.0
-└── README.md
-```
-
-(no `bench/__init__.py` exists yet — see the Quick Start note.)
-
-## Mock Implementations
-
-This library provides mock implementations for heavy ML dependencies (identity embeddings, depth maps, texture generation). The interfaces are designed for easy swapping with real model calls:
-
-```python
-# Replace mock embedding with real model
-def real_embedding(image: Image.Image) -> np.ndarray:
-    from transformers import CLIPModel, CLIPProcessor
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    inputs = processor(images=image, return_tensors="pt")
-    return model.get_image_features(**inputs).detach().numpy().flatten()
-```
-
-## License
-
-Apache 2.0 - see [LICENSE](LICENSE) for details.
-
-
-## Integridad y reproducibilidad de los resultados
-
-`lcb run` usa **imágenes sintéticas deterministas**, generadas desde SHA-256 de cada prompt. Su salida incluye `"kind": "synthetic-demo"`: **no representa una prueba empírica de QBP frente a otro modelo**, ni debe utilizarse como una comparación de calidad de modelos reales. Para resultados reales, integra generadores reales en la API de Python e identifica el modelo, parámetros, semillas y datos de prueba.
-
-El comando `run` produce `results.json` con secciones `character` y `temporal`. Para generar informes o comparar dichas secciones es obligatorio indicarlo explícitamente:
-
-```sh
-lcb run --characters 5 --environments 3 --output results.json
-lcb report results.json --section character --format html
-lcb report results.json --section temporal --format md
-lcb compare baseline.json qbp.json --section character
-```
-
-Los informes escapan los títulos y nombres de dimensiones al exportar HTML. La construcción del benchmark no modifica el generador aleatorio global de Python ni NumPy. Los resultados `synthetic-demo` deben mostrarse siempre como material de prueba, nunca como métricas verificadas de producción.
+[Static project site](docs/index.html), [Python API](bench/benchmark.py), [CLI](bench/cli.py), [report model](bench/report.py), [sample datasets](bench/datasets). No files, methods or previous capabilities have been removed. Apache 2.0 — see LICENSE.

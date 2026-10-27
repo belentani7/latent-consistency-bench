@@ -1,155 +1,228 @@
-"""CLI entry point for latent-consistency-bench."""
+"""CLI for reproducible *simulated* consistency tests and real report exports.
 
+The built-in generators create deterministic noise images. They do not call
+ComfyUI, a diffusion pipeline, CLIP or real model providers.
+"""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import sys
+from html import escape
 from pathlib import Path
 
 from bench.compare import compare_results, export_csv, generate_chart
 from bench.report import BenchmarkResult
 
+SECTIONS = ("character", "temporal", "pbr")
+
+
+def _parse_result(raw: object, *, name: str) -> BenchmarkResult:
+    if not isinstance(raw, dict) or not isinstance(raw.get("scores"), dict):
+        raise ValueError(f"{name}: expected a result object with scores")
+    scores = {}
+    for dimension, value in raw["scores"].items():
+        if (not isinstance(dimension, str)
+                or isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not 0 <= value <= 1):
+            raise ValueError(f"{name}: invalid score {dimension!r}")
+        scores[dimension] = float(value)
+    count = raw.get("num_samples", 0)
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        raise ValueError(f"{name}: invalid sample count")
+    metadata = raw.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise ValueError(f"{name}: invalid metadata")
+    return BenchmarkResult(
+        name=str(raw.get("name") or name),
+        scores=scores, metadata=metadata, num_samples=count,
+    )
+
+
+def load_results(path: str | Path) -> dict[str, BenchmarkResult]:
+    """Open native suite JSON from 'lcb run' or legacy single result JSON."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("result file must be a JSON object")
+    if any(section in data for section in SECTIONS):
+        sections = {
+            key: _parse_result(data[key], name=key)
+            for key in SECTIONS if key in data
+        }
+        if not sections:
+            raise ValueError("empty benchmark suite")
+        return sections
+    return {"result": _parse_result(data, name="result")}
+
+
+def _load_result(path: str | Path, section: str | None = None) -> BenchmarkResult:
+    """Backward-compatible single-result loader with explicit suite selection."""
+    results = load_results(path)
+    if section is not None:
+        if section not in results:
+            raise ValueError(f"Section {section!r} is not present in {path}")
+        return results[section]
+    if len(results) != 1:
+        raise ValueError("Combined results require --section to select one result")
+    return next(iter(results.values()))
+
 
 def cmd_run(args: argparse.Namespace) -> None:
-    """Run benchmark suite."""
+    """Execute a deterministic offline simulation; never present as a real model test."""
+    from PIL import Image
+    import numpy as np
     from bench.benchmark import ConsistencyBenchmark
 
-    def mock_baseline(prompt: str, **kwargs):
-        import numpy as np
-        from PIL import Image
+    if args.characters < 1 or args.environments < 1 or args.materials < 1:
+        raise ValueError("--characters, --environments and --materials must be >= 1")
 
-        digest = hashlib.sha256(("baseline:" + prompt).encode("utf-8")).digest()
-        rng = np.random.RandomState(int.from_bytes(digest[:4], "big"))
-        return Image.fromarray(rng.randint(0, 256, (512, 512, 3), dtype=np.uint8))
+    def sample_image(prompt: str, variant: int):
+        payload = f"{args.seed}:{variant}:{prompt}".encode("utf-8")
+        seed = int.from_bytes(hashlib.sha256(payload).digest()[:4], "big")
+        rng = np.random.RandomState(seed)
+        return Image.fromarray(rng.randint(0, 256, (128, 128, 3), dtype=np.uint8))
 
-    def mock_qbp(prompt: str, **kwargs):
-        import numpy as np
-        from PIL import Image
-
-        digest = hashlib.sha256(("synthetic-qbp:" + prompt).encode("utf-8")).digest()
-        rng = np.random.RandomState(int.from_bytes(digest[:4], "big"))
-        return Image.fromarray(rng.randint(0, 256, (512, 512, 3), dtype=np.uint8))
-
-    bench = ConsistencyBenchmark(mock_baseline, mock_qbp)
-    if args.characters < 1 or args.environments < 1:
-        raise SystemExit("--characters and --environments must both be >= 1")
-    print("DEMO: deterministic synthetic images, not real model/QBP results.")
-    print(f"Running character consistency ({args.characters} subjects)...")
+    bench = ConsistencyBenchmark(
+        lambda prompt, **kwargs: sample_image(prompt, 0),
+        lambda prompt, **kwargs: sample_image(prompt, 1),
+        seed=args.seed,
+    )
+    print("MODE: synthetic demonstration, NOT a benchmark of real AI generators")
+    print(f"Character samples: {args.characters}; temporal sequences: {args.environments}")
     char_result = bench.run_character_consistency(n=args.characters)
-    print(f"Running temporal consistency ({args.environments} sequences)...")
     temp_result = bench.run_temporal_consistency(n=args.environments)
+    pbr_result = bench.run_pbr_validity(n=args.materials)
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-
     combined = {
-        "kind": "synthetic-demo",
+        "format_version": 1,
+        "simulation": True,
+        "seed": args.seed,
         "character": char_result.to_dict(),
         "temporal": temp_result.to_dict(),
+        "pbr": pbr_result.to_dict(),
     }
-    output.write_text(json.dumps(combined, indent=2))
-    print(f"Results saved to {output}")
+    output.write_text(json.dumps(combined, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"JSON report: {output}")
 
-    fig = generate_chart([char_result, temp_result], title="LCB Benchmark Results")
+    fig = generate_chart([char_result, temp_result, pbr_result], title="LCB · Synthetic Demonstration")
     chart_path = output.with_suffix(".png")
-    fig.savefig(chart_path, dpi=150)
-    print(f"Chart saved to {chart_path}")
-
-
-def _load_result(path: str, section: str | None = None) -> BenchmarkResult:
-    """Read a benchmark result or explicitly choose a section of a run file."""
-    with open(path, encoding="utf-8") as fh:
-        data = json.load(fh)
-    if not isinstance(data, dict):
-        raise ValueError("Results file must be a JSON object")
-    if "scores" not in data:
-        sections = [name for name in ("character", "temporal") if name in data]
-        if not sections:
-            raise ValueError("No benchmark scores found")
-        if section is None:
-            raise ValueError("Combined results contain multiple sections; select --section character or temporal")
-        if section not in sections:
-            raise ValueError(f"Section '{section}' not available; choose one of {sections}")
-        data = data[section]
-    elif section is not None:
-        raise ValueError("--section is only valid for combined run files")
-    if not isinstance(data, dict) or not isinstance(data.get("scores"), dict):
-        raise ValueError("Selected results have no valid scores")
-    return BenchmarkResult(
-        name=data.get("name", "result"),
-        scores=data["scores"],
-        metadata=data.get("metadata", {}),
-        num_samples=data.get("num_samples", 0),
-    )
+    try:
+        fig.savefig(chart_path, dpi=150)
+    finally:
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+    print(f"Chart: {chart_path}")
 
 
 def cmd_compare(args: argparse.Namespace) -> None:
-    """Compare the selected sections of two result files."""
-    result_a = _load_result(args.baseline, args.section)
-    result_b = _load_result(args.qbp, args.section)
-    report = compare_results(result_a, result_b)
-    print(report.to_markdown())
+    """Compare either two single results or two matching suite sections."""
+    baseline = load_results(args.baseline)
+    enhanced = load_results(args.qbp)
+    selected = getattr(args, "section", None)
+    if selected is not None:
+        if selected not in baseline or selected not in enhanced:
+            raise ValueError(f"Section {selected!r} is not present in both results")
+        common = [selected]
+    else:
+        common = sorted(set(baseline) & set(enhanced))
+    if not common:
+        raise ValueError("No matching result types in the two JSON files")
+    for key in common:
+        print(f"\n## Section: {key}\n")
+        print(compare_results(baseline[key], enhanced[key]).to_markdown())
+    if set(baseline) != set(enhanced):
+        print("Warning: unmatched suite sections were omitted", file=sys.stderr)
+
+
+def _suite_html(results: dict[str, BenchmarkResult]) -> str:
+    body = [
+        "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>",
+        "<title>LCB report</title>",
+        "<style>body{background:#080f17;color:#edf7fc;font:16px system-ui;max-width:980px;margin:auto;padding:35px}",
+        "h1,h2{letter-spacing:-.04em}table{width:100%;border-collapse:collapse;margin:20px 0 48px}",
+        "td,th{text-align:left;border-bottom:1px solid #ffffff25;padding:12px}th{color:#a3e9ff}",
+        "p{color:#c2d0d6}a{color:#b5efff}</style></head><body>",
+        "<h1>LATENT CONSISTENCY BENCH / REPORT</h1>",
+        "<p>Scores from the supplied JSON. Synthetic results are not evidence of real model performance.</p>",
+    ]
+    for label, result in results.items():
+        body.append(f"<section><h2>{escape(label.title())} — {escape(result.name)}</h2>")
+        body.append(f"<p>Samples: {result.num_samples} · Overall (simple mean): {result.overall:.4f}</p>")
+        body.append("<table><thead><tr><th>Metric</th><th>Score</th></tr></thead><tbody>")
+        for dimension, score in sorted(result.scores.items()):
+            body.append(f"<tr><td>{escape(dimension)}</td><td>{score:.4f}</td></tr>")
+        body.append("</tbody></table></section>")
+    return "\n".join(body + ["</body></html>"])
 
 
 def cmd_report(args: argparse.Namespace) -> None:
-    """Generate report from a single result or selected combined section."""
-    result = _load_result(args.results, args.section)
-
+    """Export *all* sections of the JSON produced by 'run'."""
+    results = load_results(args.results)
+    selected = getattr(args, "section", None)
+    if selected is not None:
+        if selected not in results:
+            raise ValueError(f"Section {selected!r} is not present in results")
+        results = {selected: results[selected]}
     fmt = args.format
-    if fmt == "html":
-        out = result.to_html()
-        ext = ".html"
-    elif fmt == "csv":
-        source_path = Path(args.results)
-        csv_path = source_path.with_name(source_path.stem + (("-" + args.section) if args.section else "") + ".csv")
-        export_csv([result], csv_path)
-        print(f"CSV saved to {csv_path}")
+    source = Path(args.results)
+    base = source.with_name(source.stem + (f"-{selected}" if selected else ""))
+    if fmt == "csv":
+        csv_path = base.with_suffix(".csv")
+        export_csv(list(results.values()), csv_path)
+        print(f"CSV report: {csv_path}")
         return
+    if fmt == "html":
+        rendered = _suite_html(results)
+        extension = ".html"
     else:
-        out = result.to_markdown()
-        ext = ".md"
+        rendered = "\n\n---\n\n".join(
+            f"## {name.title()}\n\n{result.to_markdown()}"
+            for name, result in results.items()
+        )
+        extension = ".md"
+    path = base.with_suffix(extension)
+    path.write_text(rendered, encoding="utf-8")
+    print(f"Report: {path}")
 
-    source_path = Path(args.results)
-    output_path = source_path.with_name(source_path.stem + (("-" + args.section) if args.section else "") + ext)
-    output_path.write_text(out)
-    print(f"Report saved to {output_path}")
 
-
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        prog="lcb",
-        description="Latent Consistency Bench - AI visual consistency benchmarking",
+        prog="lcb", description="Latent Consistency Bench — offline simulation and analysis",
     )
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Run benchmark suite")
-    run_parser.add_argument("--characters", type=int, default=20, help="Number of character subjects")
-    run_parser.add_argument("--environments", type=int, default=10, help="Number of environment sequences")
-    run_parser.add_argument("--output", default="results.json", help="Output file path")
+    run_parser = subparsers.add_parser("run", help="Run reproducible synthetic example")
+    run_parser.add_argument("--characters", type=int, default=20)
+    run_parser.add_argument("--environments", type=int, default=10)
+    run_parser.add_argument("--materials", type=int, default=10)
+    run_parser.add_argument("--seed", type=int, default=42)
+    run_parser.add_argument("--output", default="results.json")
 
-    compare_parser = subparsers.add_parser("compare", help="Compare two result files")
-    compare_parser.add_argument("baseline", help="Baseline results JSON")
-    compare_parser.add_argument("qbp", help="QBP results JSON")
-    compare_parser.add_argument("--section", choices=["character", "temporal"], help="Section for combined run results")
+    compare_parser = subparsers.add_parser("compare", help="Compare JSON exports")
+    compare_parser.add_argument("baseline")
+    compare_parser.add_argument("qbp")
+    compare_parser.add_argument("--section", choices=SECTIONS, help="Compare one suite section")
 
-    report_parser = subparsers.add_parser("report", help="Generate report from results")
-    report_parser.add_argument("results", help="Results JSON file")
-    report_parser.add_argument("--section", choices=["character", "temporal"], help="Section for combined run results")
-    report_parser.add_argument("--format", choices=["html", "csv", "md"], default="html", help="Output format")
+    report_parser = subparsers.add_parser("report", help="Export entire result file")
+    report_parser.add_argument("results")
+    report_parser.add_argument("--section", choices=SECTIONS, help="Export one suite section")
+    report_parser.add_argument("--format", choices=["html", "csv", "md"], default="html")
 
-    args = parser.parse_args()
-
-    if args.command == "run":
-        cmd_run(args)
-    elif args.command == "compare":
-        cmd_compare(args)
-    elif args.command == "report":
-        cmd_report(args)
-    else:
-        parser.print_help()
-        sys.exit(1)
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "run":
+            cmd_run(args)
+        elif args.command == "compare":
+            cmd_compare(args)
+        else:
+            cmd_report(args)
+    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        parser.exit(2, f"lcb: {exc}\n")
 
 
 if __name__ == "__main__":
